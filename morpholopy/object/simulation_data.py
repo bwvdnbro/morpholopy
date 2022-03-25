@@ -61,7 +61,7 @@ class SimInfo(ParticleIds):
         self.__find_groups_and_particles_catalogues()
 
         # Load snapshot via swiftsimio
-        self.snapshot = load(f"{self.directory}/{self.snapshot_name}")
+        snapshot = load(f"{self.directory}/{self.snapshot_name}")
 
         # Fetch the run name if not provided
         if name is not None:
@@ -71,44 +71,44 @@ class SimInfo(ParticleIds):
 
         # Conversion from internal units to kpc
         self.to_kpc_units = (
-            self.snapshot.metadata.internal_code_units["Unit length in cgs (U_L)"][0]
+            snapshot.metadata.internal_code_units["Unit length in cgs (U_L)"][0]
             / constants.kpc
         )
 
         # Conversion from internal units to Msun
         self.to_Msun_units = (
-            self.snapshot.metadata.internal_code_units["Unit mass in cgs (U_M)"][0]
+            snapshot.metadata.internal_code_units["Unit mass in cgs (U_M)"][0]
             / constants.Msun
         )
 
         # Conversion from internal units to Myr
         self.to_Myr_units = (
-            self.snapshot.metadata.internal_code_units["Unit time in cgs (U_t)"][0]
+            snapshot.metadata.internal_code_units["Unit time in cgs (U_t)"][0]
             / constants.Myr
         )
 
         # Conversion from internal units to yr
         self.to_yr_units = (
-            self.snapshot.metadata.internal_code_units["Unit time in cgs (U_t)"][0]
+            snapshot.metadata.internal_code_units["Unit time in cgs (U_t)"][0]
             / constants.yr
         )
 
         # Box size of the simulation in kpc
-        self.boxSize = self.snapshot.metadata.boxsize.to("kpc").value[0]
+        self.boxSize = snapshot.metadata.boxsize.to("kpc").value[0]
 
         # Cosmic scale factor
-        self.a = self.snapshot.metadata.scale_factor
+        self.a = snapshot.metadata.scale_factor
 
-        self.hubble_time_Gyr = self.snapshot.metadata.cosmology.hubble_time.value
+        self.hubble_time_Gyr = snapshot.metadata.cosmology.hubble_time.value
 
-        self.Omega_m = self.snapshot.metadata.cosmology.Om0
+        self.Omega_m = snapshot.metadata.cosmology.Om0
 
         # No curvature
         self.Omega_l = 1.0 - self.Omega_m
 
         # Maximum softening for baryons
         self.baryon_max_soft = (
-            self.snapshot.metadata.gravity_scheme[
+            snapshot.metadata.gravity_scheme[
                 "Maximal physical baryon softening length  [internal units]"
             ][0]
             * self.to_kpc_units
@@ -203,46 +203,44 @@ class SimInfo(ParticleIds):
 
         mask_gas, mask_stars = self.make_masks_gas_and_stars(halo_id=halo_id)
 
-        gas_mass = self.snapshot.gas.masses[mask_gas].value * self.to_Msun_units
+        snapshot = load(f"{self.directory}/{self.snapshot_name}")
+
+        gas_mass = snapshot.gas.masses[mask_gas].value * self.to_Msun_units
         gas_n_parts = len(gas_mass)
         gas_data = np.zeros((gas_n_parts, 13))
 
         gas_data[:, 0:3] = (
-            self.snapshot.gas.coordinates[mask_gas].value * self.a * self.to_kpc_units
+            snapshot.gas.coordinates[mask_gas].value * self.a * self.to_kpc_units
         )
 
         gas_data[:, 3] = gas_mass
-        gas_data[:, 4:7] = self.snapshot.gas.velocities[mask_gas].value  # km/s
+        gas_data[:, 4:7] = snapshot.gas.velocities[mask_gas].value  # km/s
         gas_data[:, 7] = (
-            self.snapshot.gas.smoothing_lengths[mask_gas].value
-            * self.a
-            * self.to_kpc_units
+            snapshot.gas.smoothing_lengths[mask_gas].value * self.a * self.to_kpc_units
         )
 
-        XH = self.snapshot.gas.element_mass_fractions.hydrogen[mask_gas].value
-        gas_HI = self.snapshot.gas.species_fractions.HI[mask_gas].value
-        gas_H2 = self.snapshot.gas.species_fractions.H2[mask_gas].value * 2.0
+        XH = snapshot.gas.element_mass_fractions.hydrogen[mask_gas].value
+        gas_HI = snapshot.gas.species_fractions.HI[mask_gas].value
+        gas_H2 = snapshot.gas.species_fractions.H2[mask_gas].value * 2.0
 
         gas_data[:, 8] = gas_HI * XH * gas_mass
         gas_data[:, 9] = gas_H2 * XH * gas_mass
 
         gas_data[:, 10] = (
-            self.snapshot.gas.star_formation_rates[mask_gas].value
+            snapshot.gas.star_formation_rates[mask_gas].value
             * self.to_Msun_units
             / self.to_yr_units
         )
         gas_data[:, 11] = (
-            self.snapshot.gas.densities[mask_gas].value
+            snapshot.gas.densities[mask_gas].value
             * (self.a * self.to_Msun_units / self.to_kpc_units) ** 3
         )
         gas_data[:, 12] = (
-            self.snapshot.gas.metal_mass_fractions[mask_gas].value / self.Zsolar
+            snapshot.gas.metal_mass_fractions[mask_gas].value / self.Zsolar
         )
 
-        stars_mass = self.snapshot.stars.masses[mask_stars].value * self.to_Msun_units
-        stars_birthz = (
-            1.0 / self.snapshot.stars.birth_scale_factors[mask_stars].value - 1.0
-        )
+        stars_mass = snapshot.stars.masses[mask_stars].value * self.to_Msun_units
+        stars_birthz = 1.0 / snapshot.stars.birth_scale_factors[mask_stars].value - 1.0
 
         if len(stars_birthz) > 1:
             stars_age = cosmic_time_approx_Gyr(
@@ -253,22 +251,18 @@ class SimInfo(ParticleIds):
         else:
             stars_age = 0.0
 
-        stars_Z = self.snapshot.stars.metal_mass_fractions[mask_stars].value
+        stars_Z = snapshot.stars.metal_mass_fractions[mask_stars].value
         stars_initmass = (
-            self.snapshot.stars.initial_masses[mask_stars].value * self.to_Msun_units
+            snapshot.stars.initial_masses[mask_stars].value * self.to_Msun_units
         )
 
         stars_n_parts = len(stars_mass)
         stars_data = np.zeros((stars_n_parts, 12))
         stars_data[:, 0:3] = (
-            self.snapshot.stars.coordinates[mask_stars].value
-            * self.a
-            * self.to_kpc_units
+            snapshot.stars.coordinates[mask_stars].value * self.a * self.to_kpc_units
         )
         stars_data[:, 3] = stars_mass
-        stars_data[:, 4:7] = self.snapshot.stars.velocities[
-            mask_stars
-        ].value  # km/s  # km/s
+        stars_data[:, 4:7] = snapshot.stars.velocities[mask_stars].value  # km/s  # km/s
         stars_data[:, 7] = 0.5 * self.baryon_max_soft * np.ones(stars_mass.size)
         stars_data[:, 8] = stars_mass * (1.2348 / stars_data[:, 7]) ** 3
         stars_data[:, 9] = stars_age

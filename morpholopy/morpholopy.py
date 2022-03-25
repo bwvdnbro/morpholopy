@@ -14,6 +14,8 @@ from plotter.loadplots import loadGalaxyPlots
 from plotter import html
 from time import time
 from tqdm import tqdm
+import multiprocessing as mp
+from swiftsimio import load as load_snapshot
 
 from plotter.surface_maps_face_edge import surface_densities_overview
 from plotter.species_transitions import species_transitions_combined
@@ -96,6 +98,11 @@ def compute_galaxy_morpholopy(
     return
 
 
+def pool_f(args):
+    compute_galaxy_morpholopy(*args)
+    return args[1]
+
+
 def main(config: ArgumentParser):
 
     time_start = time()
@@ -123,11 +130,13 @@ def main(config: ArgumentParser):
 
         output_name_list.append(sim_info.simulation_name)
 
+        snap = load_snapshot(f"{sim_info.directory}/{sim_info.snapshot_name}")
         # Make initial part of the webpage
         if sim == 0:
-            web = html.make_web(sim_info.snapshot)
+            web = html.make_web(snap)
         elif web is not None:
-            html.add_metadata_to_web(web, sim_info.snapshot)
+            html.add_metadata_to_web(web, snap)
+        snap = None
 
         # Load luminosity tables
         simulation_data.SimInfo.load_photometry_grid()
@@ -161,6 +170,7 @@ def main(config: ArgumentParser):
             halo_min_stellar_mass=config.min_stellar_mass,
         )
 
+        """
         for i in tqdm(range(sim_info.halo_data.number_of_haloes)):
             compute_galaxy_morpholopy(
                 sim_info=sim_info,
@@ -168,6 +178,15 @@ def main(config: ArgumentParser):
                 output_path=config.output_directory,
                 halo_counter=i,
             )
+        """
+        pool = mp.Pool(16)
+        argslist = [
+            [sim_info, i, config.number_of_galaxies, config.output_directory]
+            for i in range(sim_info.halo_data.number_of_haloes)
+        ]
+        print(argslist)
+        for i in pool.imap_unordered(pool_f, argslist):
+            print(i, "done")
 
         write_morphology_data_to_file(
             sim_info.halo_data,
