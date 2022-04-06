@@ -4,6 +4,52 @@ from velociraptor import load
 import glob
 
 
+class SingleHaloData:
+    def __init__(self, index):
+        self._index = index
+
+    def add_stellar_morphology(self, data, index):
+        if not index == self._index:
+            raise ValueError("Wrong halo index!")
+
+        self.kappa_co = data[0]
+        self.momentum = data[1]
+        self.axis_ca = data[2]
+        self.axis_cb = data[3]
+        self.axis_ba = data[4]
+
+        return
+
+    def add_gas_morphology(self, data, index):
+        if not index == self._index:
+            raise ValueError("Wrong halo index!")
+
+        self.gas_kappa_co = data[0]
+        self.gas_momentum = data[1]
+        self.gas_axis_ca = data[2]
+        self.gas_axis_cb = data[3]
+        self.gas_axis_ba = data[4]
+
+        return
+
+    def add_surface_density(self, data, index):
+        if not index == self._index:
+            raise ValueError("Wrong halo index!")
+
+        self.sigma_H2 = data[0]
+        self.sigma_gas = data[1]
+        self.sigma_SFR = data[2]
+
+        return
+
+    def add_HI_size_mass(self, HI_size, HI_mass, index):
+        if not index == self._index:
+            raise ValueError("Wrong halo index!")
+
+        self.HI_size = HI_size
+        self.HI_mass = HI_mass
+
+
 class HaloCatalogue:
     """
     General class containing halo properties
@@ -93,6 +139,9 @@ class HaloCatalogue:
         self.sigma_gas = np.zeros(self.number_of_haloes)
         self.sigma_SFR = np.zeros(self.number_of_haloes)
 
+        self.HI_size = np.zeros(self.number_of_haloes)
+        self.HI_mass = np.zeros(self.number_of_haloes)
+
         self.xminpot = catalogue.positions.xcminpot.to("kpc").value[mask]
         self.yminpot = catalogue.positions.ycminpot.to("kpc").value[mask]
         self.zminpot = catalogue.positions.zcminpot.to("kpc").value[mask]
@@ -138,5 +187,34 @@ class HaloCatalogue:
         self.sigma_H2[index] = data[0]
         self.sigma_gas[index] = data[1]
         self.sigma_SFR[index] = data[2]
+
+        return
+
+    def add_HI_size_mass(self, HI_size, HI_mass, index):
+        self.HI_size[index] = HI_size
+        self.HI_mass[index] = HI_mass
+
+    def add_halo_contributions(self, halo_data):
+
+        index = halo_data._index
+
+        self.kappa_co[index] = halo_data.kappa_co
+        self.momentum[index] = halo_data.momentum
+        self.axis_ca[index] = halo_data.axis_ca
+        self.axis_cb[index] = halo_data.axis_cb
+        self.axis_ba[index] = halo_data.axis_ba
+
+        self.gas_kappa_co[index] = halo_data.gas_kappa_co
+        self.gas_momentum[index] = halo_data.gas_momentum
+        self.gas_axis_ca[index] = halo_data.gas_axis_ca
+        self.gas_axis_cb[index] = halo_data.gas_axis_cb
+        self.gas_axis_ba[index] = halo_data.gas_axis_ba
+
+        self.sigma_H2[index] = halo_data.sigma_H2
+        self.sigma_gas[index] = halo_data.sigma_gas
+        self.sigma_SFR[index] = halo_data.sigma_SFR
+
+        self.HI_size[index] = halo_data.HI_size
+        self.HI_mass[index] = halo_data.HI_mass
 
         return

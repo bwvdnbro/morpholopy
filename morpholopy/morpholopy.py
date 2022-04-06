@@ -9,11 +9,15 @@ from plotter.KS_relation import make_KS_plots, calculate_surface_densities
 from plotter.KS_comparison import make_comparison_plots
 from plotter.plot_morphology import write_morphology_data_to_file, plot_morphology
 from plotter.plot_surface_densities import plot_surface_densities
+from plotter.HI_size import calculate_HI_size, plot_HI_size_mass
 from object import simulation_data
+from object import halo_catalogue
 from plotter.loadplots import loadGalaxyPlots
 from plotter import html
 from time import time
 from tqdm import tqdm
+import multiprocessing as mp
+from swiftsimio import load as load_snapshot
 
 from plotter.surface_maps_face_edge import surface_densities_overview
 from plotter.species_transitions import species_transitions_combined
@@ -42,6 +46,8 @@ def compute_galaxy_morpholopy(
     Path to the output directory
     """
 
+    halo_data = halo_catalogue.SingleHaloData(halo_counter)
+
     # Read particle data for a specific halo
     gas_data, stars_data = sim_info.make_particle_data(
         halo_id=sim_info.halo_data.halo_ids[halo_counter]
@@ -52,20 +58,29 @@ def compute_galaxy_morpholopy(
 
     # Calculate morphology estimators: kappa, axial ratios for stars ..
     stars_ang_momentum, stars_data = sim_info.calculate_morphology(
-        stars_data, halo_counter, 4
+        stars_data, halo_counter, 4, halo_data
     )
 
     # Calculate morphology estimators: kappa, axial ratios for HI+H2 gas ..
     gas_ang_momentum, gas_data = sim_info.calculate_morphology(
-        gas_data, halo_counter, 0
+        gas_data, halo_counter, 0, halo_data
     )
 
     # Calculate stellar luminosities
-    star_abmags = sim_info.calculate_luminosities(stars_data)
+    #    star_abmags = sim_info.calculate_luminosities(stars_data)
 
     # Calculate surface densities for HI+H2 gas ..
     calculate_surface_densities(
-        gas_data, gas_ang_momentum, sim_info.halo_data, halo_counter
+        gas_data, gas_ang_momentum, sim_info.halo_data, halo_counter, halo_data
+    )
+
+    calculate_HI_size(
+        gas_data,
+        gas_ang_momentum,
+        sim_info.halo_data,
+        output_path,
+        halo_counter,
+        halo_data,
     )
 
     # Make plots for individual galaxies, perhaps.. only first 10
@@ -93,7 +108,12 @@ def compute_galaxy_morpholopy(
             sim_info.combined_data,
         )
 
-    return
+    return halo_data
+
+
+def pool_f(args):
+    halo_data = compute_galaxy_morpholopy(*args)
+    return args[1], halo_data
 
 
 def main(config: ArgumentParser):
@@ -123,11 +143,13 @@ def main(config: ArgumentParser):
 
         output_name_list.append(sim_info.simulation_name)
 
+        snap = load_snapshot(f"{sim_info.directory}/{sim_info.snapshot_name}")
         # Make initial part of the webpage
         if sim == 0:
-            web = html.make_web(sim_info.snapshot)
+            web = html.make_web(snap)
         elif web is not None:
-            html.add_metadata_to_web(web, sim_info.snapshot)
+            html.add_metadata_to_web(web, snap)
+        snap = None
 
         # Load luminosity tables
         simulation_data.SimInfo.load_photometry_grid()
@@ -144,6 +166,7 @@ def main(config: ArgumentParser):
         # Compute morphological properties (loop over haloes)
         print("Computing morphological properties...")
 
+        """
         surface_densities_overview(
             sim_name=sim_name,
             directory=directory,
@@ -160,7 +183,9 @@ def main(config: ArgumentParser):
             output_path=config.output_directory,
             halo_min_stellar_mass=config.min_stellar_mass,
         )
+        """
 
+        """
         for i in tqdm(range(sim_info.halo_data.number_of_haloes)):
             compute_galaxy_morpholopy(
                 sim_info=sim_info,
@@ -168,6 +193,16 @@ def main(config: ArgumentParser):
                 output_path=config.output_directory,
                 halo_counter=i,
             )
+        """
+        argslist = [
+            [sim_info, i, config.number_of_galaxies, config.output_directory]
+            for i in range(sim_info.halo_data.number_of_haloes)
+        ]
+        print(argslist)
+        pool = mp.Pool(min(16, len(argslist)))
+        for i, halo_data in pool.imap_unordered(pool_f, argslist):
+            print(i, "done")
+            sim_info.halo_data.add_halo_contributions(halo_data)
 
         write_morphology_data_to_file(
             sim_info.halo_data,
@@ -191,6 +226,7 @@ def main(config: ArgumentParser):
         num_of_galaxies_to_show=num_galaxies_to_show,
     )
     plot_morphology(output_path=config.output_directory, name_list=output_name_list)
+    plot_HI_size_mass(output_path=config.output_directory, name_list=output_name_list)
 
     # Load galaxy plots
     loadGalaxyPlots(
@@ -216,5 +252,6 @@ def main(config: ArgumentParser):
 
 if __name__ == "__main__":
 
+    mp.set_start_method("forkserver")
     config_parameters = ArgumentParser()
     main(config_parameters)
