@@ -272,7 +272,7 @@ class SimInfo(ParticleIds):
         return gas_data, stars_data
 
     def calculate_morphology(
-        self, part_data: np.ndarray, halo_index: int, parttype: int
+        self, part_data: np.ndarray, halo_index: int, parttype: int, halo_data
     ):
         """
         Computes morphological properties of a given halo
@@ -304,8 +304,10 @@ class SimInfo(ParticleIds):
         # Store morphology parameters in halo data and continue
         if parttype == 4:
             self.halo_data.add_stellar_morphology(morphology, halo_index)
+            halo_data.add_stellar_morphology(morphology, halo_index)
         elif parttype == 0:
             self.halo_data.add_gas_morphology(morphology, halo_index)
+            halo_data.add_gas_morphology(morphology, halo_index)
         return momentum, part_data
 
     def write_galaxy_data_to_file(self, output_path: str) -> None:

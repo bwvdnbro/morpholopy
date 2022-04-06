@@ -576,7 +576,7 @@ def make_KS_plots(
     )
 
 
-def calculate_surface_densities(data, ang_momentum, galaxy_data, index):
+def calculate_surface_densities(data, ang_momentum, galaxy_data, index, halo_data):
 
     # If we have gas, calculate ..
     radius = galaxy_data.half_mass_radius_star[index]
@@ -591,3 +591,4 @@ def calculate_surface_densities(data, ang_momentum, galaxy_data, index):
     )
     Sigma = np.array([Sigma_H2, Sigma_gas, Sigma_SFR])
     galaxy_data.add_surface_density(Sigma, index)
+    halo_data.add_surface_density(Sigma, index)

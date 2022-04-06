@@ -35,7 +35,7 @@ def gauss_curve(x, A, a, b, c, x0, y0):
 
 
 def calculate_HI_size(
-    data, ang_momentum, galaxy_data, output_path, index, resolution=64
+    data, ang_momentum, galaxy_data, output_path, index, halo_data, resolution=64
 ):
     """
     Calculate the HI size of the given galaxy by fitting a 2D elliptical function
@@ -112,6 +112,7 @@ def calculate_HI_size(
         print(
             "Central surface density below 1 Msun pc^-2 limit, no HI size measurement possible!"
         )
+        HIsize = 0.0
     else:
         # convert from the general elliptical coordinates to a coordinate frame where
         # the major axis is aligned with the x axis (and the minor axis with the y
@@ -131,10 +132,12 @@ def calculate_HI_size(
 
         # Compute the HI size
         HIsize = 2.0 * Dx
-        # Compute the HI mass as the integrated surface density of the image
-        HImass = image.sum() * R ** 2 * 4.0e6 / resolution ** 2
-        # Set the values for this galaxy
-        galaxy_data.add_HI_size_mass(HIsize, HImass, index)
+
+    # Compute the HI mass as the integrated surface density of the image
+    HImass = image.sum() * R ** 2 * 4.0e6 / resolution ** 2
+    # Set the values for this galaxy
+    galaxy_data.add_HI_size_mass(HIsize, HImass, index)
+    halo_data.add_HI_size_mass(HIsize, HImass, index)
 
     rcparams = {
         "font.size": 12,
@@ -202,6 +205,8 @@ def calculate_HI_size(
     pl.tight_layout()
     pl.savefig(f"{output_path}/HI_size_{index}.png", dpi=300)
     pl.close()
+
+    return
 
 
 def plot_HI_size_mass(output_path, name_list):
